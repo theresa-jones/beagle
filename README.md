@@ -1,2 +1,2 @@
 # beagle
-Temporary/for practicing basic git operations
+Temporary/for practicing basic operations
