@@ -1,0 +1,116 @@
+#!/usr/bin/env ruby
+# Usage: intake_atlas
+# This script automates several tasks performed regularly when preparing
+# projects to go through production in the Atlas 2 toolchain.
+
+unless Kernel.respond_to?(:require_relative)
+  module Kernel
+    def require_relative(path)
+      require File.join(File.dirname(caller[0]), path.to_str)
+    end
+  end
+end
+
+require_relative 'atlas_project/config'
+require_relative 'atlas_project/product'
+require_relative 'atlas_project/project'
+
+def determine_isbn
+  isbn = nil
+  while isbn == nil
+    puts "Please provide the project's print ISBN: "
+    isbn = gets.chomp
+  end
+  isbn
+end
+
+def determine_product_type
+  product_type_query = "Is this project a report? Enter'(y)es' or '(n)o': "
+  valid_answers = ["y", "yes", "n", "no"]
+  user_answer = get_valid_user_answer(product_type_query, valid_answers)
+  if user_answer == ("y" or "yes")
+    return "report"
+  else
+    return "book"
+  end
+end
+  
+def get_valid_user_answer(query, valid_answers)
+  answer = nil
+  until valid_answers.include?(answer)
+    puts query
+    answer = gets.chomp
+  end
+  answer
+end
+
+def determine_source_format
+  source_format_query = "Please specify a format for the text source by" \
+                        " entering 'a' for AsciiDoc, 'd' for DocBook, or 'h'" \
+                        " for HTMLBook: "
+  valid_abbreviated_formats = ["a", "d", "h"]
+  abbreviated_format = get_valid_user_answer(
+    source_format_query,
+    valid_abbreviated_formats
+  )
+  expand_format_abbreviation(abbreviated_format)
+end
+
+def expand_format_abbreviation(abbreviated_format)
+  case abbreviated_format
+  when "a"
+    "AsciiDoc"
+  when "d"
+    "DocBook"
+  when "h"
+    "HTMLBook"
+  end
+end
+
+def trim_size(product)
+  case product.trim_spec
+  when "7 x 9.1875"
+    "7inx9.1875in"
+  when "6 x 9"
+    "6inx9in"
+  end
+end
+
+def stylesheet_name(product)
+  case product.description
+  when "Animal Guide"
+    "animal"
+  when "Report"
+    "animal"
+  when "Trade"
+    "trade"
+  when "Cookbook"
+    "cookbook"
+  end
+end
+
+if __FILE__ == $0
+  product = Product.new
+  source_format = determine_source_format
+  case product.type
+  when "Tech Book"
+    atlas_project = Book.new(source_format)
+  when "Print NonDistributable"
+    atlas_project = Report.new(source_format)
+  end
+  atlas_project.pdf_build_version = "print"
+  atlas_project.all_formats_toc = true
+  atlas_project.all_formats_syntaxhighlighting = true
+  atlas_project.all_formats_show_comments = false
+  atlas_project.pdf_color_count = product.interior_color_count
+  atlas_project.all_formats_index = true
+  atlas_project.trim_size = trim_size(product)
+  atlas_project.epubcheck = true
+  atlas_project.epub_mathmlreplacement = false
+  atlas_project.stylesheet_name = stylesheet_name(product)
+  atlas_project.title = product.title
+  atlas_project.isbn = product.isbn
+  atlas_project.save_configuration
+  atlas_project.generate_missing_front_or_backmatter
+  atlas_project.standardize_source
+end
